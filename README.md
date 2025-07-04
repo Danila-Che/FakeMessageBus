@@ -1,11 +1,11 @@
-# FakeEventBus
-A minimal event bus for Unity that is easy to use and provides simple navigation through the IDE.
+# FakeMessageBus
+A minimal message bus for Unity that is easy to use. FakeMessageBus can form the basis of an message bus or command bus.
 
 ## Installation
 
 ### Unity Package Manager
 ```
-https://github.com/Danila-Che/FakeEventBus.git?path=/Assets/FakeEventBus
+https://github.com/Danila-Che/FakeMessageBus.git?path=/Assets/FakeMessageBus
 ```
 
 1. In Unity, open **Window** → **Package Manager**.
@@ -13,143 +13,86 @@ https://github.com/Danila-Che/FakeEventBus.git?path=/Assets/FakeEventBus
 3. Enter url above and press **Add**.
 
 ## Usage
-Full-fledged code that uses the event bus:
+Full code that uses the message bus (any type can be used, such as value types or reference types):
+
+1. Declare a message type.
+
 ```csharp
 using System;
 
-public class ExampleEventArgs : EventArgs { ... }
+public class ExampleMessage { ... }
 
-public class AthotherExampleEventArgs : EventArgs { ... }
+public struct AthotherExampleMessage { ... }
 ```
 
+2. Then simply register/unregister an object with callbacks decorated with the `ObserveMessage` attribute on the message bus.
+
+> The callback method must have only one parameter.
+
 ```csharp
-using FakeEventBus;
+using FakeMessageBus;
 using System;
 
 public class ExampleObserver : IDisposable
 {
-    private EventBus m_EventBus;
+    private MessageBus m_MessageBus;
 
-    public ExampleObserver(EventBus eventBus)
+    public ExampleObserver(MessageBus messageBus)
     {
-        m_EventBus = eventBus;
+        m_MessageBus = messageBus;
 
-        m_EventBus.Register(this);
+        m_MessageBus.Register(this);
     }
 
     public void Dispose()
     {
-        m_EventBus.Unregister(this);
+        m_MessageBus.Unregister(this);
     }
 
-    [ObserveEvent]
-    public void On(ExampleEventArgs args)
+    [ObserveMessage]
+    public void On(ExampleMessage message)
     {
         ...
     }
 
-    [ObserveEvent]
-    public void On(AthotherExampleEventArgs args)
+    [ObserveMessage]
+    public void On(AthotherExampleMessage message)
     {
         ...
-    }
-}
-```
-
-```csharp
-using FakeEventBus;
-
-public class ExampleEventHandler
-{
-    private EventBus m_EventBus;
-
-    public OnRaiseEvent()
-    {
-        m_EventBus.Notify(new ExampleEventArgs(42));
-    }
-}
-```
-
-## Getting Started
-1. Create a class representing the arguments of the event. The event args class must inherit from `System.EventArgs`.
-```csharp
-using System;
-
-public class ExampleEventArgs : EventArgs
-{
-    private int m_ExampleData;
-
-    public ExampleEventArgs(int exampleData)
-    {
-        m_ExampleData = exampleData;
-    }
-
-    public int ExampleData => m_ExampleData;
-}
-```
-2. Create an observable callback in your class. The callback must have only one parameter of type `EventArgs` and must have `ObserveEventAttribute`.
-```csharp
-using FakeEventBus;
-
-public class ExampleObserver
-{
-    [ObserveEvent]
-    public void On(ExampleEventArgs args)
-    {
-        ...
-    }
-}
-```
-3. Register an observer to event bus.
-```csharp
-using FakeEventBus;
-
-public class ExampleObserver
-{
-    public ExampleObserver(EventBus eventBus)
-    {
-        eventBus.Register(this);
     }
     
-    ...
-}
-```
-4. Raise an event with event arguments.
-```csharp
-using FakeEventBus;
-
-public class ExampleEventHandler
-{
-    private EventBus m_EventBus;
-
-    public OnRaiseEvent()
+    [ObserveMessage]
+    public void On(int message)
     {
-        m_EventBus.Notify(new ExampleEventArgs(42));
+        ...
+    }
+    
+    [ObserveMessage]
+    public void On(string message)
+    {
+        ...
     }
 }
 ```
-5. Unregister the observer from the event bus.
+
+3. At the end, simply send the message using the `Send` method.
+
 ```csharp
-using FakeEventBus;
-using System;
+using FakeMessageBus;
 
-public class ExampleObserver : IDisposable
+public class ExampleMessageHandler
 {
-    private EventBus m_EventBus;
+    private MessageBus m_MessageBus;
 
-    ...
-
-    public void Dispose()
+    public OnRaiseMessage()
     {
-        m_EventBus.Unregister(this);
+        m_MessageBus.Send(new ExampleMessage(42));
     }
-
-    ...
 }
 ```
 
-## EventBusProxy
-`EventBusProxy` encapsulates an event bus using the singleton pattern. It has static methods implementing various registration and unregistration strategies for `GameObject`.
+## MessageBusProxy
+`MessageBusProxy` encapsulates an message bus using the singleton pattern. It has static methods implementing various registration and unregistration strategies for `GameObject`.
 
 ### RegisterSingle(GameObject)
 ### RegisterObject(GameObject)
@@ -164,10 +107,10 @@ Other static methods:
 ### Notify<T>(T)
 
 ## GameObjectSelfRegistration
-Interacts with `EventBusProxy` to automatically register and unregister with selected strategy (Single, Object, and Recursive). Register `GameObject` with the `OnEnable` callback and uregister `GameObject` with the `OnDisable` callback.
+Interacts with `MessageBusProxy` to automatically register and unregister with selected strategy (Single, Object, and Recursive). Register `GameObject` with the `OnEnable` callback and uregister `GameObject` with the `OnDisable` callback.
 
 ## Dependency injection
-`EventBus` implements the `IEventBus` interface. I use the Reflex framework to inject `EventBus`.
+`MessageBus` implements the `IMessageBus` interface. I use the `Reflex` framework to inject `MessageBus`.
 
 ```csharp
 using Reflex.Core;
@@ -177,54 +120,54 @@ public class ProjectInstaller : MonoBehaviour, IInstaller
 {
     public void InstallBindings(ContainerBuilder builder)
     {
-        builder.AddSingleton(typeof(EventBus), typeof(IEventBus));
+        builder.AddSingleton(typeof(MessageBus), typeof(IMessageBus));
     }
 }
 ```
 
 ```csharp
-using FakeEventBus;
+using FakeMessageBus;
 using Reflex.Core;
 
-public class ExampleObserver
+public class ExampleObserver : MonoBehaviour
 {
-    [Inject] private IEventBus m_EventBus;
+    [Inject] private IMessageBus m_MessageBus;
 
     private void OnEnable()
     {
-        m_EventBus.Register(this);
+        m_MessageBus.Register(this);
     }
 
     private void OnDisable()
     {
-        m_EventBus.Unregister(this);
+        m_MessageBus.Unregister(this);
     }
     
     ...
 }
 ```
 
-## EventBus Component
+## MessageBus Component
 ### Register(object)
-Register an observer with the `EventBus` if the observer has valid callbacks. A callback contains only one parameter inherited from `EventArgs`. The observer will not be registered if at least one callback is invalid.
+Register an observer with the `MessageBus` if the observer has valid callbacks. A callback contains only one parameter. The observer will not be registered callback if it contains zero or greater than one parameter.
 #### Exceptions
 `InvalidCallbackException`
 Observer has at least one callback is invalid.
 
 ### Unregister(object)
-Unregister an observer from `EventBus`.
+Unregister an observer from `MessageBus`.
 
-### Notify<T>(T)
-Raises an event with the specified arguments.
+### Send<T>(T)
+Raises an message with the specified arguments.
 #### Parameter
-`eventArgs` T
-The event args to be sended to all registered observer callback.
+`messageArgs` T
+The message args to be sended to all registered observer callback.
 
 ### Clear()
-Removes all callbacks (observers) from the `EventBus`.
+Removes all callbacks (observers) from the `MessageBus`.
 
 ### GetActiveObserverCount<T>()
-Gets the number of registered callback for the specified `EventArgs` type. 
+Gets the number of registered callback for the specified `MessageArgs` type. 
 #### Return
 int
 The number of registered callback
