@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace FakeMessageBus
@@ -19,107 +18,57 @@ namespace FakeMessageBus
 			BindingFlags.NonPublic |
 			BindingFlags.Public |
 			BindingFlags.Instance;
-
-		private readonly ReaderWriterLockSlim m_Lock = new();
-
+		
 		private readonly Dictionary<Type, IObserverBindings> m_ObserverBindings = new(); // Type is message arg type
 		private readonly Dictionary<Type, List<CallbackCache>> m_ObserverCallbackCache = new(); // Type is observer type
 
-		public int GetActiveObserverCount<T>()
+		public int GetActiveObserverCount<TMessage>()
 		{
-			m_Lock.EnterReadLock();
-			try
+			if (m_ObserverBindings.TryGetValue(typeof(TMessage), out var bindings))
 			{
-				if (m_ObserverBindings.TryGetValue(typeof(T), out var bindings))
-				{
-					return bindings.CallbackCount;
-				}
+				return bindings.CallbackCount;
+			}
 
-				return 0;
-			}
-			finally
-			{
-				m_Lock.ExitReadLock();
-			}
+			return 0;
 		}
 
 		public void Clear(bool includeCache = false)
 		{
-			m_Lock.EnterWriteLock();
-			try
-			{
-				m_ObserverBindings.Clear();
+			m_ObserverBindings.Clear();
 
-				if (includeCache)
-				{
-					m_ObserverCallbackCache.Clear();
-				}
-			}
-			finally
+			if (includeCache)
 			{
-				m_Lock.ExitWriteLock();
+				m_ObserverCallbackCache.Clear();
 			}
 		}
 
 		public void Register(object observer)
 		{
-			m_Lock.EnterWriteLock();
-			try
-			{
-				CacheIfNecessary(observer);
-				AddObserver(observer);
-			}
-			finally
-			{
-				m_Lock.ExitWriteLock();
-			}
+			CacheIfNecessary(observer);
+			AddObserver(observer);
 		}
 
 		public void Unregister(object observer)
 		{
-			m_Lock.EnterWriteLock();
-			try
+			foreach (var binding in m_ObserverBindings)
 			{
-				foreach (var binding in m_ObserverBindings)
-				{
-					binding.Value.Remove(observer);
-				}
-			}
-			finally
-			{
-				m_Lock.ExitWriteLock();
+				binding.Value.Remove(observer);
 			}
 		}
 		
 		public void Send<TMessage>(TMessage message)
 		{
-			m_Lock.EnterReadLock();
-			try
+			if (m_ObserverBindings.TryGetValue(typeof(TMessage), out var bindings))
 			{
-				if (m_ObserverBindings.TryGetValue(typeof(TMessage), out var bindings))
-				{
-					((ObserverBindings<TMessage>)bindings).Invoke(message);
-				}
-			}
-			finally
-			{
-				m_Lock.ExitReadLock();
+				((ObserverBindings<TMessage>)bindings).Invoke(message);
 			}
 		}
 
 		public async Task SendAsync<TMessage>(TMessage message)
 		{
-			m_Lock.EnterReadLock();
-			try
+			if (m_ObserverBindings.TryGetValue(typeof(TMessage), out var bindings))
 			{
-				if (m_ObserverBindings.TryGetValue(typeof(TMessage), out var bindings))
-				{
-					await ((ObserverBindings<TMessage>)bindings).InvokeAsync(message);
-				}
-			}
-			finally
-			{
-				m_Lock.ExitReadLock();
+				await ((ObserverBindings<TMessage>)bindings).InvokeAsync(message);
 			}
 		}
 
@@ -130,7 +79,7 @@ namespace FakeMessageBus
 				var cache = new List<CallbackCache>();
 
 				Cache(observer.GetType(), cache);
-				m_ObserverCallbackCache.Add(observer.GetType(), cache);
+				m_ObserverCallbackCache[observer.GetType()] = cache;
 			}
 		}
 
@@ -167,7 +116,7 @@ namespace FakeMessageBus
 				if (!m_ObserverBindings.TryGetValue(messageCache.MessageArgType, out var bindings))
 				{
 					bindings = CreateBinding(messageCache.MessageArgType);
-					m_ObserverBindings.Add(messageCache.MessageArgType, bindings);
+					m_ObserverBindings[messageCache.MessageArgType] = bindings;
 				}
 
 				if (!bindings.Contains(messageCache.MethodInfo, observer))

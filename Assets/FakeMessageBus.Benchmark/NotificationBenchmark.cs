@@ -15,15 +15,23 @@ namespace FakeMessageBus.Benchmark
 
         [Min(1)]
         [SerializeField] private int m_ObserverCount = 1;
+        [SerializeField] private bool m_Concurrent;
 
-        private MessageBus m_MessageBus;
+        private IMessageBus m_MessageBus;
         private Message m_Message;
 
         protected override int Order => 1;
 
         private void Start()
         {
-            m_MessageBus = new MessageBus();
+            if (m_Concurrent)
+            {
+                m_MessageBus = new ConcurrentMessageBus();
+            }
+            else
+            {
+                m_MessageBus = new MessageBus();
+            }
             m_Message = new Message();
 
             for (int i = 0; i < m_ObserverCount; i++)
